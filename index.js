@@ -1,7 +1,7 @@
 import makeWASocket, { useMultiFileAuthState } from "@whiskeysockets/baileys";
 import OpenAI from "openai";
 
-// ⚡ Configure ta clé API OpenAI dans Render ou .env
+// ⚡ Configure ta clé OpenAI dans Render
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Historique par utilisateur
@@ -25,10 +25,15 @@ async function startBot() {
     if (!conversations[sender]) conversations[sender] = [];
 
     try {
+      // Envoi à OpenAI GPT-3.5/4
       const response = await client.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
-          { role: "system", content: "Tu es un assistant intelligent et poli, comme ChatGPT. Réponds à toutes les questions." },
+          {
+            role: "system",
+            content:
+              "Tu es un assistant intelligent et poli, comme ChatGPT. Réponds à toutes les questions clairement et de manière conviviale."
+          },
           ...conversations[sender],
           { role: "user", content: text }
         ]
@@ -36,10 +41,16 @@ async function startBot() {
 
       const reply = response.choices[0].message.content;
 
+      // Mettre à jour l’historique
       conversations[sender].push({ role: "user", content: text });
       conversations[sender].push({ role: "assistant", content: reply });
-      if (conversations[sender].length > 12) conversations[sender] = conversations[sender].slice(-12);
 
+      // Limiter l’historique à 12 messages pour économiser la mémoire
+      if (conversations[sender].length > 12) {
+        conversations[sender] = conversations[sender].slice(-12);
+      }
+
+      // Envoyer la réponse sur WhatsApp
       await sock.sendMessage(sender, { text: reply });
 
     } catch (err) {
@@ -49,4 +60,5 @@ async function startBot() {
   });
 }
 
+// Démarrage du bot
 startBot();
