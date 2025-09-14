@@ -1,6 +1,7 @@
 {
-  "name": "gpt-whatsapp-openai",
+  "name": "gpt-whatsapp-pairing",
   "version": "1.0.0",
+  "description": "Bot WhatsApp utilisant Baileys et OpenAI GPT-3.5 avec pairing code",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -9,6 +10,21 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.1.0",
     "openai": "^4.0.0",
+    "pino": "^8.13.1",
+    "chalk": "^5.3.0",
     "node-fetch": "^3.3.2"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "gpt",
+    "openai",
+    "bot",
+    "pairing"
+  ],
+  "author": "RAIZEL",
+  "license": "MIT"
 }
