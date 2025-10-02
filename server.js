@@ -5,7 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mediaRoutes = require('./routes/media');
-const { UPLOAD_DIR, THUMB_DIR, PORT } = require('./config');
+const { UPLOAD_DIR, THUMB_DIR } = require('./config');
 
 const app = express();
 
@@ -29,7 +29,12 @@ app.use('/thumbs', express.static(THUMB_DIR, { maxAge: '1d' }));
 // API
 app.use('/api/media', mediaRoutes);
 
-// Simple health
+// Route test
+app.get('/', (req, res) => res.send('✅ API is running on Railway 🚀'));
+
+// Health check
 app.get('/health', (req,res)=> res.json({ ok: true }));
 
+// Lancer serveur sur le bon PORT
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
