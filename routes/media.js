@@ -14,11 +14,11 @@ db.exec(migrations);
 
 const router = express.Router();
 
-// Ensure directories exist
+// ===== Assurer que les dossiers existent =====
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(THUMB_DIR, { recursive: true });
 
-// Multer storage
+// ===== Multer storage =====
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -33,33 +33,61 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','video/quicktime'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Type de fichier non supporté'), false);
+    cb(null, allowed.includes(file.mimetype));
   }
 });
 
-// POST /api/media/upload
+// ===== Helpers =====
+async function processFile(file) {
+  let width = null, height = null;
+  let thumbUrl = null;
+
+  if (file.mimetype.startsWith('image/')) {
+    try {
+      const metadata = await sharp(file.path).metadata();
+      width = metadata.width;
+      height = metadata.height;
+
+      // créer miniature
+      const thumbPath = path.join(THUMB_DIR, file.filename);
+      await sharp(file.path).resize({ width: 400 }).withMetadata().toFile(thumbPath);
+      thumbUrl = `${BASE_URL}/thumbs/${file.filename}`;
+    } catch (err) {
+      console.warn('Erreur création miniature:', err.message);
+    }
+  }
+
+  const info = {
+    filename: file.filename,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+    width,
+    height
+  };
+
+  const stmt = db.prepare(`INSERT INTO media(filename, originalname, mimetype, size, width, height) VALUES (@filename, @originalname, @mimetype, @size, @width, @height)`);
+  const result = stmt.run(info);
+
+  return {
+    id: result.lastInsertRowid,
+    ...info,
+    url: `${BASE_URL}/uploads/${file.filename}`,
+    thumb: thumbUrl
+  };
+}
+
+// ===== Routes =====
+
+// Upload fichiers (max 8)
 router.post('/upload', upload.array('files', 8), async (req, res) => {
+  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Aucun fichier reçu' });
+
   try {
-    const stmt = db.prepare(`INSERT INTO media(filename, originalname, mimetype, size, width, height) VALUES (@filename, @originalname, @mimetype, @size, @width, @height)`);
     const inserted = [];
-    for (const f of req.files) {
-      let width = null, height = null;
-      if (f.mimetype.startsWith('image/')) {
-        try {
-          const metadata = await sharp(f.path).metadata();
-          width = metadata.width;
-          height = metadata.height;
-          // create thumbnail
-          const thumbPath = path.join(THUMB_DIR, f.filename);
-          await sharp(f.path).resize({ width: 400 }).withMetadata().toFile(thumbPath);
-        } catch (e) {
-          console.warn('sharp error', e);
-        }
-      }
-      const info = { filename: f.filename, originalname: f.originalname, mimetype: f.mimetype, size: f.size, width, height };
-      const result = stmt.run(info);
-      inserted.push({ id: result.lastInsertRowid, ...info, url: `${BASE_URL}/uploads/${f.filename}` });
+    for (const file of req.files) {
+      const fileData = await processFile(file);
+      inserted.push(fileData);
     }
     res.json({ success: true, inserted });
   } catch (err) {
@@ -68,7 +96,7 @@ router.post('/upload', upload.array('files', 8), async (req, res) => {
   }
 });
 
-// GET /api/media  (list)
+// Lister tous les fichiers
 router.get('/', (req, res) => {
   const rows = db.prepare('SELECT * FROM media ORDER BY created_at DESC').all();
   const mapped = rows.map(r => ({
@@ -86,7 +114,7 @@ router.get('/', (req, res) => {
   res.json(mapped);
 });
 
-// GET /api/media/:id  (single)
+// Récupérer un fichier par ID
 router.get('/:id', (req,res) => {
   const row = db.prepare('SELECT * FROM media WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
